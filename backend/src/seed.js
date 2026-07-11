@@ -1,6 +1,6 @@
 import * as storage from './storage.js';
 
-// Spans domains on purpose so History / Saved / Quiz demo "not just tech jargon" from minute one.
+// Spans domains on purpose so History / Saved demo "not just tech jargon" from minute one.
 const SEED_TERMS = [
   {
     term: 'API',

@@ -1,14 +1,6 @@
-import { useMemo, useState } from "react";
-import {
-    getHistory,
-    getQuizQuestion,
-    getSaved,
-    toggleSave,
-    translate,
-} from "./api/client";
+import { useEffect, useMemo, useState } from "react";
+import { getHistory, getSaved, toggleSave, translate } from "./api/client";
 import { rolePresets } from "./data/seedData";
-
-const tabs = ["Text", "Quiz"];
 
 function formatRoleLabel(role) {
     if (!role) {
@@ -22,18 +14,21 @@ function formatRoleLabel(role) {
 }
 
 function App() {
-    const [activeTab, setActiveTab] = useState("Text");
     const [term, setTerm] = useState("race condition");
-    const [direction, setDirection] = useState("jargon2output");
     const [selectedRole, setSelectedRole] = useState(null);
     const [customRole, setCustomRole] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [translation, setTranslation] = useState(null);
     const [historyOpen, setHistoryOpen] = useState(false);
-    const [savedOpen, setSavedOpen] = useState(false);
-    const [history, setHistory] = useState(() => getHistory());
-    const [saved, setSaved] = useState(() => getSaved());
+    const [dictionaryOpen, setDictionaryOpen] = useState(false);
+    const [history, setHistory] = useState([]);
+    const [saved, setSaved] = useState([]);
+
+    useEffect(() => {
+        getHistory().then(setHistory);
+        getSaved().then(setSaved);
+    }, []);
 
     const activeRole = selectedRole || null;
 
@@ -45,21 +40,15 @@ function App() {
         return saved.some(
             (item) =>
                 item.term === translation.term &&
-                (item.role || null) === (translation.role || null) &&
-                item.direction === translation.direction,
+                (item.role || null) === (translation.role || null),
         );
     }, [saved, translation]);
 
-    const targetLabel =
-        direction === "jargon2output"
-            ? activeRole
-                ? `${formatRoleLabel(activeRole)} language`
-                : "Plain English"
-            : activeRole
-              ? `${formatRoleLabel(activeRole)} jargon`
-              : "Domain jargon";
+    const targetLabel = activeRole
+        ? `${formatRoleLabel(activeRole)} language`
+        : "Plain English";
 
-    const runTranslate = async (nextTerm, nextRole, nextDirection) => {
+    const runTranslate = async (nextTerm, nextRole) => {
         const cleanTerm = nextTerm.trim();
         if (!cleanTerm) {
             setError("Enter a term or phrase to translate.");
@@ -70,14 +59,10 @@ function App() {
         setLoading(true);
 
         try {
-            const result = await translate({
-                term: cleanTerm,
-                role: nextRole,
-                direction: nextDirection,
-            });
+            const result = await translate({ term: cleanTerm, role: nextRole });
             setTranslation(result);
-            setHistory(getHistory());
-            setSaved(getSaved());
+            setHistory(await getHistory());
+            setSaved(await getSaved());
         } catch {
             setError(
                 "Translation failed. Try again or verify backend connectivity.",
@@ -88,7 +73,7 @@ function App() {
     };
 
     const onTranslateSubmit = async () => {
-        await runTranslate(term, activeRole, direction);
+        await runTranslate(term, activeRole);
     };
 
     const onPresetRole = async (role) => {
@@ -97,7 +82,7 @@ function App() {
         setCustomRole("");
 
         if (translation || term.trim()) {
-            await runTranslate(term, nextRole, direction);
+            await runTranslate(term, nextRole);
         }
     };
 
@@ -110,167 +95,111 @@ function App() {
         }
 
         setSelectedRole(normalized);
-        await runTranslate(term, normalized, direction);
+        await runTranslate(term, normalized);
     };
 
-    const onSwapDirection = async () => {
-        const nextDirection =
-            direction === "jargon2output" ? "output2jargon" : "jargon2output";
-        setDirection(nextDirection);
-
-        if (translation || term.trim()) {
-            await runTranslate(term, activeRole, nextDirection);
-        }
-    };
-
-    const onToggleSave = () => {
+    const onToggleSave = async () => {
         if (!translation) {
             return;
         }
 
-        toggleSave(translation);
-        setSaved(getSaved());
+        await toggleSave(translation);
+        setSaved(await getSaved());
     };
 
-    const repopulateFromEntry = async (entry) => {
+    const repopulateFromEntry = (entry) => {
         setTerm(entry.term);
         setSelectedRole(entry.role || null);
         setCustomRole(entry.role || "");
-        setDirection(entry.direction);
         setTranslation(entry);
         setHistoryOpen(false);
-        setSavedOpen(false);
+        setDictionaryOpen(false);
     };
-
-    const quiz = getQuizQuestion();
 
     return (
         <div className="app-shell">
             <header className="topbar">
                 <div className="brand">Jargon Translator</div>
                 <nav className="tabs" aria-label="Main tabs">
-                    {tabs.map((tab) => (
-                        <button
-                            type="button"
-                            key={tab}
-                            className={`tab ${activeTab === tab ? "active" : ""}`}
-                            onClick={() => setActiveTab(tab)}
-                        >
-                            {tab}
-                        </button>
-                    ))}
+                    <button type="button" className="tab active">
+                        Text
+                    </button>
                 </nav>
             </header>
 
-            {activeTab === "Text" ? (
-                <main className="translator-layout">
-                    <section className="panel input-panel">
-                        <div className="panel-head">
-                            <span className="pill">Jargon</span>
-                            <button
-                                type="button"
-                                className="ghost"
-                                onClick={onTranslateSubmit}
-                            >
-                                Translate
-                            </button>
-                        </div>
-                        <textarea
-                            className="term-input"
-                            value={term}
-                            onChange={(event) => setTerm(event.target.value)}
-                            placeholder="Enter jargon or plain description..."
-                        />
-                    </section>
-
-                    <button
-                        type="button"
-                        className="swap-button"
-                        onClick={onSwapDirection}
-                        aria-label="Swap translation direction"
-                        title="Swap direction"
-                    >
-                        ⇄
-                    </button>
-
-                    <section className="panel output-panel">
-                        <div className="panel-head">
-                            <span className="pill accent">{targetLabel}</span>
-                            <button
-                                type="button"
-                                className={`star ${isSaved ? "saved" : ""}`}
-                                onClick={onToggleSave}
-                                aria-label="Toggle save"
-                                title="Save translation"
-                            >
-                                ★
-                            </button>
-                        </div>
-
-                        {loading ? (
-                            <div
-                                className="shimmer"
-                                aria-label="Loading translation"
-                            />
-                        ) : (
-                            <div className="output-body">
-                                <p className="output-main">
-                                    {translation?.output ||
-                                        "Your translation appears here."}
-                                </p>
-                                <p className="meta">
-                                    <strong>Analogy:</strong>{" "}
-                                    {translation?.analogy || "None"}
-                                </p>
-                                <p
-                                    className={`meta caution ${translation?.caution ? "show" : ""}`}
-                                >
-                                    <strong>Caution:</strong>{" "}
-                                    {translation?.caution ||
-                                        "No caution flags."}
-                                </p>
-                                {translation?.cached ? (
-                                    <span className="cache-tag">
-                                        Cached result
-                                    </span>
-                                ) : null}
-                            </div>
-                        )}
-                        {error ? <p className="error-msg">{error}</p> : null}
-                    </section>
-                </main>
-            ) : (
-                <section className="quiz-panel panel">
+            <main className="translator-layout">
+                <section className="panel input-panel">
                     <div className="panel-head">
-                        <span className="pill">Quiz</span>
+                        <span className="pill">Jargon</span>
+                        <button
+                            type="button"
+                            className="ghost"
+                            onClick={onTranslateSubmit}
+                        >
+                            Translate
+                        </button>
                     </div>
-                    {!quiz ? (
-                        <p className="empty">
-                            Save at least four items to start quiz mode.
-                        </p>
+                    <textarea
+                        className="term-input"
+                        value={term}
+                        onChange={(event) => setTerm(event.target.value)}
+                        placeholder="Enter jargon..."
+                    />
+                </section>
+
+                <div className="flow-arrow" aria-hidden="true">
+                    →
+                </div>
+
+                <section className="panel output-panel">
+                    <div className="panel-head">
+                        <span className="pill accent">{targetLabel}</span>
+                        <button
+                            type="button"
+                            className={`star ${isSaved ? "saved" : ""}`}
+                            onClick={onToggleSave}
+                            disabled={!translation}
+                            title={
+                                isSaved
+                                    ? "Remove from Dictionary"
+                                    : "Save to Dictionary"
+                            }
+                        >
+                            {isSaved ? "★ Saved" : "☆ Save"}
+                        </button>
+                    </div>
+
+                    {loading ? (
+                        <div
+                            className="shimmer"
+                            aria-label="Loading translation"
+                        />
                     ) : (
-                        <div className="quiz-card">
-                            <h2>Which output matches: {quiz.term}?</h2>
-                            <div className="quiz-options">
-                                {quiz.options.map((option) => (
-                                    <button
-                                        type="button"
-                                        key={option}
-                                        className="quiz-option"
-                                        title={
-                                            option === quiz.correct
-                                                ? "Correct answer"
-                                                : "Option"
-                                        }
-                                    >
-                                        {option}
-                                    </button>
-                                ))}
-                            </div>
+                        <div className="output-body">
+                            <p className="output-main">
+                                {translation?.output ||
+                                    "Your translation appears here."}
+                            </p>
+                            <p className="meta">
+                                <strong>Analogy:</strong>{" "}
+                                {translation?.analogy || "None"}
+                            </p>
+                            <p
+                                className={`meta caution ${translation?.caution ? "show" : ""}`}
+                            >
+                                <strong>Caution:</strong>{" "}
+                                {translation?.caution || "No caution flags."}
+                            </p>
+                            {translation?.cached ? (
+                                <span className="cache-tag">
+                                    Cached result
+                                </span>
+                            ) : null}
                         </div>
                     )}
+                    {error ? <p className="error-msg">{error}</p> : null}
                 </section>
-            )}
+            </main>
 
             <section className="role-zone">
                 <div className="chips" aria-label="Role presets">
@@ -310,20 +239,20 @@ function App() {
                     className={`dock-btn ${historyOpen ? "active" : ""}`}
                     onClick={() => {
                         setHistoryOpen((prev) => !prev);
-                        setSavedOpen(false);
+                        setDictionaryOpen(false);
                     }}
                 >
                     History
                 </button>
                 <button
                     type="button"
-                    className={`dock-btn ${savedOpen ? "active" : ""}`}
+                    className={`dock-btn ${dictionaryOpen ? "active" : ""}`}
                     onClick={() => {
-                        setSavedOpen((prev) => !prev);
+                        setDictionaryOpen((prev) => !prev);
                         setHistoryOpen(false);
                     }}
                 >
-                    Saved
+                    Dictionary
                 </button>
             </footer>
 
@@ -341,17 +270,15 @@ function App() {
                             onClick={() => repopulateFromEntry(item)}
                         >
                             <strong>{item.term}</strong>
-                            <span>
-                                {item.role || "plain"} · {item.direction}
-                            </span>
+                            <span>{item.role || "plain"}</span>
                         </button>
                     ))}
                 </aside>
             ) : null}
 
-            {savedOpen ? (
+            {dictionaryOpen ? (
                 <aside className="drawer">
-                    <h3>Saved</h3>
+                    <h3>Dictionary</h3>
                     {saved.length === 0 ? (
                         <p className="empty">No saved terms yet.</p>
                     ) : null}
@@ -363,9 +290,7 @@ function App() {
                             onClick={() => repopulateFromEntry(item)}
                         >
                             <strong>{item.term}</strong>
-                            <span>
-                                {item.role || "plain"} · {item.direction}
-                            </span>
+                            <span>{item.role || "plain"}</span>
                         </button>
                     ))}
                 </aside>

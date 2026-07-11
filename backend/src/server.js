@@ -17,8 +17,8 @@ app.get('/api/health', (_req, res) => {
 
 app.post('/api/translate', async (req, res) => {
   try {
-    const { term, role, direction } = req.body || {};
-    const result = await translate({ term, role, direction });
+    const { term, role } = req.body || {};
+    const result = await translate({ term, role });
     res.json(result);
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
@@ -41,14 +41,6 @@ app.post('/api/saved/toggle', (req, res) => {
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message });
   }
-});
-
-app.get('/api/quiz', (_req, res) => {
-  const question = storage.getQuizQuestion();
-  if (!question) {
-    return res.status(404).json({ error: 'Not enough saved terms for a quiz yet' });
-  }
-  res.json(question);
 });
 
 const PORT = process.env.PORT || 3001;

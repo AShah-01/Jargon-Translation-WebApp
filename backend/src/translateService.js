@@ -1,20 +1,19 @@
 import { runSkill } from './skill.js';
 import * as storage from './storage.js';
 
-export async function translate({ term, role, direction }) {
+export async function translate({ term, role }) {
   if (!term || !term.trim()) {
     throw Object.assign(new Error('term is required'), { status: 400 });
   }
-  const dir = direction === 'output2jargon' ? 'output2jargon' : 'jargon2output';
   const cleanTerm = term.trim();
   const roleForSkill = role && storage.normalizeRole(role) !== 'plain' ? role : null;
 
-  const cached = storage.getCached(cleanTerm, role, dir);
+  const cached = storage.getCached(cleanTerm, role);
   if (cached) {
     return { ...cached, cached: true };
   }
 
-  const result = await runSkill({ term: cleanTerm, role: roleForSkill, direction: dir });
+  const result = await runSkill({ term: cleanTerm, role: roleForSkill });
 
   const entry = {
     term: cleanTerm,
@@ -22,7 +21,6 @@ export async function translate({ term, role, direction }) {
     analogy: result.analogy,
     caution: result.caution,
     role: roleForSkill,
-    direction: dir,
     ts: Date.now(),
   };
 

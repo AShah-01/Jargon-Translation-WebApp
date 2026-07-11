@@ -33,7 +33,7 @@ function stripCodeFences(text) {
     .trim();
 }
 
-export async function runSkill({ term, role, direction }) {
+export async function runSkill({ term, role }) {
   const response = await client().messages.create({
     model: MODEL,
     max_tokens: 512,
@@ -41,7 +41,7 @@ export async function runSkill({ term, role, direction }) {
     messages: [
       {
         role: 'user',
-        content: JSON.stringify({ term, role: role ?? null, direction }),
+        content: JSON.stringify({ term, role: role ?? null }),
       },
     ],
   });
