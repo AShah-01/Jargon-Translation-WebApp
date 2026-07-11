@@ -1,80 +1,89 @@
-# Jargon-Translation-WebApp
+# Jargon Translator
 
-Modern React frontend for translating jargon into:
+A Google-Translate-style web app that translates jargon from **any domain** (tech, legal,
+medical, finance, trades, academia, ...) into plain English, or into the jargon of a chosen
+job/role. See [PLAN.md](PLAN.md) for the full product spec and [the Skill](.claude/skills/jargon-translator/SKILL.md)
+for the translation prompt itself.
 
-- Plain English (default)
-- Role-specific language (preset and freeform roles)
+## How it works
 
-The UI follows the product flow in PLAN.md and is built to connect to a Python backend without frontend crashes.
+1. Enter a jargon term or phrase.
+2. Optionally pick a role (preset chip or freeform text) — Client, Exec, PM, Nurse, Lawyer,
+   Electrician, or anything you type.
+3. Get back plain English (default) or that role's own framing of the term, plus an optional
+   analogy and a caution flag if simplifying loses something the audience needs to know.
 
-## Tech Stack
+Every translation is cached, auto-logged to History, and can be starred into a personal
+Dictionary — that's also the seed data, so the app isn't empty on first load.
 
-- React (Vite)
-- HTML/CSS/JavaScript
-- Local mock + API adapter for backend readiness
+## Tech stack
 
-## Features Implemented
+- **Frontend** (repo root): React + Vite, plain CSS.
+- **Backend** (`backend/`): Node.js + Express, in-memory cache (no database).
+- **Translation**: Anthropic Claude API, driven by the `jargon-translator` Skill
+  (`.claude/skills/jargon-translator/SKILL.md`), which the backend loads as its system prompt.
 
-- Google-Translate-style two-pane layout
-- Direction swap (jargon to output / output to jargon)
-- Role chips: Client, Exec, PM, Nurse, Lawyer, Electrician
-- Freeform role input
-- Translation output with analogy and caution sections
-- Loading shimmer and error/fallback handling
-- Auto history logging
-- Saved terms toggle
-- Quiz tab sourced from saved/history entries
-- Seeded starter data across multiple domains
+## API contract
 
-## Python Backend Ready Contract
+The frontend (`src/api/client.js`) talks to the backend over this contract:
 
-Frontend expects this endpoint:
+```
+POST /api/translate
+  body: { term: string, role: string|null }
+  -> { term, output, analogy, caution, role, ts, cached }
 
-- POST /translate
+GET  /api/history        -> [{ term, output, role, ts }]
+GET  /api/saved          -> [ same shape ]
+POST /api/saved/toggle
+  body: { term: string, role: string|null }
+  -> { saved: boolean }
+```
 
-Request JSON:
+If the backend is unreachable, the frontend falls back to a local mock response and surfaces a
+caution message instead of breaking.
 
-- term: string
-- role: null or string
-- direction: jargon2output or output2jargon
+## Run locally
 
-Response JSON:
+Prerequisite: Node.js 18+.
 
-- output: string
-- analogy: string or null
-- caution: string or null
+**Backend**
+```
+cd backend
+npm install
+cp .env.example .env   # then add your ANTHROPIC_API_KEY
+npm start
+```
+Runs on `http://localhost:3001`.
 
-If backend is unavailable, frontend falls back to a mock response and surfaces a caution message instead of breaking.
+**Frontend** (from the repo root, in a separate terminal)
+```
+npm install
+npm run dev
+```
+Runs on `http://localhost:5173`. Copy `.env.example` to `.env` and set:
+- `VITE_API_BASE_URL=http://127.0.0.1:3001/api`
+- `VITE_USE_MOCK=false` (set to `true` to run the UI without a backend)
 
-## Environment
+## Project structure
 
-Copy .env.example to .env and set:
-
-- VITE_API_BASE_URL=http://127.0.0.1:8000
-- VITE_USE_MOCK=true (default for frontend-only)
-- VITE_USE_MOCK=false (when Python backend is live)
-
-## Run Locally
-
-Prerequisite: install Node.js 18+ (includes npm).
-
-Then run:
-
-1. npm install
-2. npm run dev
-
-## Project Structure
-
-- index.html
-- src/main.jsx
-- src/App.jsx
-- src/styles.css
-- src/api/client.js
-- src/data/seedData.js
-- .env.example
+```
+src/                        frontend (React + Vite)
+  App.jsx                   translator UI (input, role picker, History/Dictionary)
+  api/client.js              backend API client (+ mock fallback)
+  data/seedData.js           role preset list
+  styles.css
+backend/                     backend (Node + Express)
+  src/server.js               Express routes
+  src/translateService.js     cache-first translate()
+  src/storage.js               in-memory cache / History / Saved
+  src/skill.js                 loads the Skill, calls the Anthropic API
+  src/seed.js                  seeds ~12 terms across domains on first run
+.claude/skills/jargon-translator/SKILL.md   the translation prompt itself
+PLAN.md                       product spec / build plan
+```
 
 ## Notes
 
-- Frontend is designed so backend integration can be done incrementally.
-- API communication is isolated in src/api/client.js for easy swap to real Python services.
-- PLAN.md remains the product specification source.
+- The backend is the single source of truth for the cache, History, and Saved/Dictionary data —
+  the frontend doesn't maintain its own copy.
+- `backend/.env` holds your API key and is gitignored; never commit it.
