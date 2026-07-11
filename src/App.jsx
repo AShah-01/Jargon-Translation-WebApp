@@ -1,14 +1,6 @@
-import { useMemo, useState } from "react";
-import {
-    getHistory,
-    getQuizQuestion,
-    getSaved,
-    toggleSave,
-    translate,
-} from "./api/client";
+import { useEffect, useMemo, useState } from "react";
+import { getHistory, getSaved, toggleSave, translate } from "./api/client";
 import { rolePresets } from "./data/seedData";
-
-const tabs = ["Text", "Quiz"];
 
 function formatRoleLabel(role) {
     if (!role) {
@@ -22,18 +14,21 @@ function formatRoleLabel(role) {
 }
 
 function App() {
-    const [activeTab, setActiveTab] = useState("Text");
     const [term, setTerm] = useState("race condition");
-    const [direction, setDirection] = useState("jargon2output");
     const [selectedRole, setSelectedRole] = useState(null);
     const [customRole, setCustomRole] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [translation, setTranslation] = useState(null);
     const [historyOpen, setHistoryOpen] = useState(false);
-    const [savedOpen, setSavedOpen] = useState(false);
-    const [history, setHistory] = useState(() => getHistory());
-    const [saved, setSaved] = useState(() => getSaved());
+    const [dictionaryOpen, setDictionaryOpen] = useState(false);
+    const [history, setHistory] = useState([]);
+    const [saved, setSaved] = useState([]);
+
+    useEffect(() => {
+        getHistory().then(setHistory);
+        getSaved().then(setSaved);
+    }, []);
 
     const activeRole = selectedRole || null;
 
@@ -45,21 +40,15 @@ function App() {
         return saved.some(
             (item) =>
                 item.term === translation.term &&
-                (item.role || null) === (translation.role || null) &&
-                item.direction === translation.direction,
+                (item.role || null) === (translation.role || null),
         );
     }, [saved, translation]);
 
-    const targetLabel =
-        direction === "jargon2output"
-            ? activeRole
-                ? `${formatRoleLabel(activeRole)} language`
-                : "Plain English"
-            : activeRole
-              ? `${formatRoleLabel(activeRole)} jargon`
-              : "Domain jargon";
+    const targetLabel = activeRole
+        ? `${formatRoleLabel(activeRole)} language`
+        : "Plain English";
 
-    const runTranslate = async (nextTerm, nextRole, nextDirection) => {
+    const runTranslate = async (nextTerm, nextRole) => {
         const cleanTerm = nextTerm.trim();
         if (!cleanTerm) {
             setError("Enter a term or phrase to translate.");
@@ -70,14 +59,10 @@ function App() {
         setLoading(true);
 
         try {
-            const result = await translate({
-                term: cleanTerm,
-                role: nextRole,
-                direction: nextDirection,
-            });
+            const result = await translate({ term: cleanTerm, role: nextRole });
             setTranslation(result);
-            setHistory(getHistory());
-            setSaved(getSaved());
+            setHistory(await getHistory());
+            setSaved(await getSaved());
         } catch {
             setError(
                 "Translation failed. Try again or verify backend connectivity.",
@@ -88,7 +73,7 @@ function App() {
     };
 
     const onTranslateSubmit = async () => {
-        await runTranslate(term, activeRole, direction);
+        await runTranslate(term, activeRole);
     };
 
     const onPresetRole = async (role) => {
@@ -97,7 +82,7 @@ function App() {
         setCustomRole("");
 
         if (translation || term.trim()) {
-            await runTranslate(term, nextRole, direction);
+            await runTranslate(term, nextRole);
         }
     };
 
@@ -110,36 +95,25 @@ function App() {
         }
 
         setSelectedRole(normalized);
-        await runTranslate(term, normalized, direction);
+        await runTranslate(term, normalized);
     };
 
-    const onSwapDirection = async () => {
-        const nextDirection =
-            direction === "jargon2output" ? "output2jargon" : "jargon2output";
-        setDirection(nextDirection);
-
-        if (translation || term.trim()) {
-            await runTranslate(term, activeRole, nextDirection);
-        }
-    };
-
-    const onToggleSave = () => {
+    const onToggleSave = async () => {
         if (!translation) {
             return;
         }
 
-        toggleSave(translation);
-        setSaved(getSaved());
+        await toggleSave(translation);
+        setSaved(await getSaved());
     };
 
-    const repopulateFromEntry = async (entry) => {
+    const repopulateFromEntry = (entry) => {
         setTerm(entry.term);
         setSelectedRole(entry.role || null);
         setCustomRole(entry.role || "");
-        setDirection(entry.direction);
         setTranslation(entry);
         setHistoryOpen(false);
-        setSavedOpen(false);
+        setDictionaryOpen(false);
     };
 
     const quiz = getQuizQuestion();
