@@ -5,6 +5,10 @@ medical, finance, trades, academia, ...) into plain English, or into the jargon 
 job/role. See [PLAN.md](PLAN.md) for the full product spec and [the Skill](.claude/skills/jargon-translator/SKILL.md)
 for the translation prompt itself.
 
+![Translator UI — jargon input on the left, plain English output on the right](docs/images/translator-ui.png)
+![Dictionary view — saved terms list](docs/images/dictionary-view.png)
+![History view — auto-logged past translations, with a cached result](docs/images/history-view.png)
+
 ## How it works
 
 1. Enter a jargon term or phrase.
